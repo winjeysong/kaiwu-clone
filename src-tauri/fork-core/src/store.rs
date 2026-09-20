@@ -8,7 +8,8 @@ use std::path::{Path, PathBuf};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
-pub const KEYRING_SERVICE: &str = "buzz-identity-fork";
+pub const KEYRING_SERVICE: &str = "kaiwu-clone-fork";
+const LEGACY_KEYRING_SERVICE: &str = "buzz-identity-fork";
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -242,28 +243,49 @@ pub fn model_key_user(id: &str) -> String {
 }
 
 pub fn set_model_key(id: &str, key: &str) -> Result<(), String> {
-    let entry = keyring::Entry::new(KEYRING_SERVICE, &model_key_user(id)).map_err(|error| error.to_string())?;
+    let entry = model_key_entry(KEYRING_SERVICE, id)?;
     entry.set_password(key).map_err(|error| format!("无法写入系统凭据存储：{}", error))
 }
 
 pub fn get_model_key(id: &str) -> Result<String, String> {
-    let entry = keyring::Entry::new(KEYRING_SERVICE, &model_key_user(id)).map_err(|error| error.to_string())?;
-    entry
-        .get_password()
-        .map_err(|_| "该分身尚未设置模型 API Key。".to_string())
+    let entry = model_key_entry(KEYRING_SERVICE, id)?;
+    match entry.get_password() {
+        Ok(key) => Ok(key),
+        Err(keyring::Error::NoEntry) => migrate_legacy_model_key(id, &entry),
+        Err(_) => Err("该分身尚未设置模型 API Key。".to_string()),
+    }
 }
 
 pub fn delete_model_key(id: &str) -> Result<(), String> {
-    let entry = keyring::Entry::new(KEYRING_SERVICE, &model_key_user(id)).map_err(|error| error.to_string())?;
-    match entry.delete_credential() {
-        Ok(()) => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
-        Err(error) => Err(error.to_string()),
+    for service in [KEYRING_SERVICE, LEGACY_KEYRING_SERVICE] {
+        match model_key_entry(service, id)?.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => {}
+            Err(error) => return Err(error.to_string()),
+        }
     }
+    Ok(())
 }
 
 pub fn has_model_key(id: &str) -> bool {
     get_model_key(id).is_ok()
+}
+
+fn model_key_entry(service: &str, id: &str) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(service, &model_key_user(id)).map_err(|error| error.to_string())
+}
+
+fn migrate_legacy_model_key(id: &str, current: &keyring::Entry) -> Result<String, String> {
+    let legacy = model_key_entry(LEGACY_KEYRING_SERVICE, id)?;
+    let key = legacy
+        .get_password()
+        .map_err(|_| "该分身尚未设置模型 API Key。".to_string())?;
+    current
+        .set_password(&key)
+        .map_err(|error| format!("无法迁移模型 API Key：{error}"))?;
+    match legacy.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(key),
+        Err(error) => Err(format!("无法清理旧模型 API Key：{error}")),
+    }
 }
 
 fn validate_id(id: &str) -> Result<(), String> {

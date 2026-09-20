@@ -16,6 +16,7 @@ use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 const METADATA_FILE: &str = "identity.json";
 const PUBLIC_KEY_FILE: &str = "public.key";
 const PRIVATE_KEY_FILE: &str = "private.key";
+const LEGACY_APP_IDENTIFIER: &str = "com.artpalstudio.buzz-identity";
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -80,10 +81,28 @@ fn validate_id(id: &str) -> Result<(), String> {
 }
 
 pub(crate) fn identities_root(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path()
+    app_data_root(app).map(|path| path.join("identities"))
+}
+
+pub(crate) fn app_data_root(app: &AppHandle) -> Result<PathBuf, String> {
+    let current = app
+        .path()
         .app_data_dir()
-        .map(|path| path.join("identities"))
-        .map_err(|error| format!("无法获取应用数据目录：{error}"))
+        .map_err(|error| format!("无法获取应用数据目录：{error}"))?;
+    let parent = current.parent().ok_or_else(|| "应用数据目录无效。".to_string())?;
+    migrate_legacy_app_data(&current, &parent.join(LEGACY_APP_IDENTIFIER))?;
+    Ok(current)
+}
+
+fn migrate_legacy_app_data(current: &Path, legacy: &Path) -> Result<(), String> {
+    if current.exists() || !legacy.exists() {
+        return Ok(());
+    }
+    let metadata = fs::symlink_metadata(legacy).map_err(|error| format!("无法读取旧应用数据：{error}"))?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return Err("旧应用数据目录无效。".into());
+    }
+    fs::rename(legacy, current).map_err(|error| format!("无法迁移旧应用数据：{error}"))
 }
 
 pub(crate) fn ensure_root(root: &Path) -> Result<(), String> {
@@ -324,7 +343,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir().join(format!("buzz-identity-test-{unique}"));
+        let root = std::env::temp_dir().join(format!("kaiwu-clone-test-{unique}"));
 
         let first =
             create_identity_at(&root, "测试账号".to_string(), "1001".to_string(), 1001).unwrap();
@@ -369,6 +388,25 @@ mod tests {
         assert_eq!(list_identities_at(&root).unwrap().len(), 1);
         assert!(validate_name("  ").is_err());
         assert!(read_identity_at(&root, "../secret").is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn migrates_legacy_app_data_once() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("kaiwu-clone-migration-test-{unique}"));
+        let legacy = root.join(LEGACY_APP_IDENTIFIER);
+        let current = root.join("com.artpalstudio.kaiwu-clone");
+        fs::create_dir_all(&legacy).unwrap();
+        fs::write(legacy.join("identity.json"), "legacy").unwrap();
+
+        migrate_legacy_app_data(&current, &legacy).unwrap();
+        assert!(!legacy.exists());
+        assert_eq!(fs::read_to_string(current.join("identity.json")).unwrap(), "legacy");
+        migrate_legacy_app_data(&current, &legacy).unwrap();
         fs::remove_dir_all(root).unwrap();
     }
 

@@ -1,10 +1,10 @@
-use crate::{ensure_root, identities_root, read_identity_at};
+use crate::{app_data_root, ensure_root, identities_root, read_identity_at};
 use fork_core::docker;
 use fork_core::snapshot::{self, KnowledgeSource};
 use fork_core::store::{self, BuzzConfig, ForkConfig, ForkSummary, ModelConfig, Persona, RuntimeState};
 use serde::Deserialize;
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 const SOUL_TEMPLATE: &str = include_str!("../../runtime/templates/SOUL.md");
 const SKILL_TEMPLATE: &str = include_str!("../../runtime/templates/SKILL.md");
@@ -34,11 +34,7 @@ pub struct ForkDraft {
 }
 
 fn forks_root(app: &AppHandle) -> Result<PathBuf, String> {
-    let root = app
-        .path()
-        .app_data_dir()
-        .map(|path| path.join("forks"))
-        .map_err(|error| format!("无法获取应用数据目录：{error}"))?;
+    let root = app_data_root(app)?.join("forks");
     ensure_root(&root)?;
     Ok(root)
 }

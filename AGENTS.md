@@ -29,7 +29,7 @@ cd src-tauri && cargo test -p fork-core
 ## 技术栈
 
 - **前端**：React 19 + Vite 8 + TailwindCSS 4 + Radix UI + lucide-react；别名 `@/*` -> `src/*`
-- **桌面**：Tauri 2（identifier `com.artpalstudio.buzz-identity`）
+- **桌面**：Tauri 2（identifier `com.artpalstudio.kaiwu-clone`）
 - **Rust**：edition 2021，rust-version 1.77.2；`bech32`/`secp256k1`（Nostr 密钥）、`keyring`（系统凭据）
 
 ## 目录结构
@@ -83,7 +83,7 @@ runtime/                       # 分身运行时容器资产（与客户端解�
 ### 凭据处理
 
 - 身份私钥保存在应用数据目录（`identities/`，0600）。
-- 模型 API Key 保存在 **OS keyring**（service `buzz-identity-fork`，账号 `<fork-id>:model`），不写入 JSON 或仓库。
+- 模型 API Key 保存在 **OS keyring**（service `kaiwu-clone-fork`，账号 `<fork-id>:model`），不写入 JSON 或仓库。
 - 启动分身时私钥/API Key 通过临时只读文件挂载，运行时读取后客户端删除宿主机临时文件；不得通过 `docker run -e KEY=value` 传递秘密。Docker 管理员仍可访问运行中的容器。
 
 ## CI 发布

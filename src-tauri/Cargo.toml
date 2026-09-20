@@ -2,14 +2,14 @@
 members = ["fork-core"]
 
 [package]
-name = "buzz-identity"
+name = "kaiwu-clone"
 version = "0.1.4"
 description = "Local Buzz clone and knowledge workspace client"
 edition = "2021"
 rust-version = "1.77.2"
 
 [lib]
-name = "buzz_identity_lib"
+name = "kaiwu_clone_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

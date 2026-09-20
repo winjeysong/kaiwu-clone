@@ -2,11 +2,11 @@
 
 > 状态：M1 已实现；M2/M3 待实施（保留原始方案供后续参考）
 > 日期：2026-09-16
-> 基线：`buzz-identity@07708c5`；架构师分身资产见 Artpal 仓库 `产品文档及计划/artpal-architect-knowledge/`
+> 基线：`kaiwu-clone@07708c5`；架构师分身资产见 Artpal 仓库 `产品文档及计划/artpal-architect-knowledge/`
 
 ## 1. 背景与目标
 
-立项时，`buzz-identity` 是身份凭据生成器（Tauri 2 + React 19）：本机生成并管理 Buzz/Nostr 身份，支持 NIP-19 与 Hex 展示、重命名和删除。
+立项时，`kaiwu-clone` 是身份凭据生成器（Tauri 2 + React 19）：本机生成并管理 Buzz/Nostr 身份，支持 NIP-19 与 Hex 展示、重命名和删除。
 
 目标是把客户端升级为"分身工坊"：从**身份凭证生成 → 分身生成 → 分身运行 → 分身事实更新**的完整体验，让同事无需接触 Docker Compose、快照发布器和 Hermes 配置，几步操作即可拥有一个接入 Buzz、可被同事 @ 的专属分身。
 
@@ -55,7 +55,7 @@ Artpal 仓库已有一套经过生产验证的架构师分身实现（`产品文
 // app_data_dir/forks/<fork-id>/fork.json
 {
   "id": "…", "name": "宋十木的分身",
-  "identityId": "…",                    // 关联 buzz-identity 身份
+  "identityId": "…",                    // 关联 kaiwu-clone 身份
   "persona": { "soul": "…", "skill": "…" },   // 内联文本，来自模板或自定义
   "knowledgeSources": [
     { "type": "git", "repoPath": "/path/to/repo", "branch": "main",
@@ -164,6 +164,6 @@ Artpal 仓库已有一套经过生产验证的架构师分身实现（`产品文
 
 ## 8. 已确认决策（2026-09-16）
 
-- **产品命名与仓库策略**：原地升级 `buzz-identity` 仓库，不新建仓库。
+- **产品命名与仓库策略**：原地升级 `kaiwu-clone` 仓库，不新建仓库。
 - **模型费用**：每分身自带模型 Key，存入 OS keyring。
 - **镜像 ACR**：地址稍后提供；开发期本地构建，CI 推送配置留空待填。
