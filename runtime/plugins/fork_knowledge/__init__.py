@@ -6,10 +6,13 @@ import os
 import stat
 from pathlib import Path, PurePosixPath
 
+from .extract import MAX_RICH_FILE_BYTES, RICH_SUFFIXES, extract_rich
+
 
 KNOWLEDGE_ROOT = Path("/knowledge")
 INDEX_PATH = Path(os.environ.get("FORK_KNOWLEDGE_INDEX", "/run/secrets/fork-public-index"))
 MAX_FILE_BYTES = 1_000_000
+MAX_SNAPSHOT_FILE_BYTES = 64 * 1024 * 1024
 MAX_INDEX_BYTES = 2_000_000
 MAX_LINES = 200
 MAX_RESULTS = 50
@@ -39,6 +42,7 @@ TEXT_SUFFIXES = {
     ".yaml",
     ".yml",
 }
+SEARCHABLE_SUFFIXES = TEXT_SUFFIXES | RICH_SUFFIXES
 INTERNAL_FILES = {
     "MANIFEST.json",
     "document-index.runtime.md",
@@ -94,6 +98,12 @@ def _load_index():
         digest = entry.get("sha256")
         size = entry.get("size_bytes")
         source_type = entry.get("source_type")
+        suffix = Path(path).suffix.lower()
+        size_limit = (
+            MAX_RICH_FILE_BYTES if suffix in RICH_SUFFIXES
+            else MAX_FILE_BYTES if suffix in TEXT_SUFFIXES
+            else MAX_SNAPSHOT_FILE_BYTES
+        )
         if (
             path in entries
             or source_type not in {"generated", "git", "folder"}
@@ -102,7 +112,7 @@ def _load_index():
             or any(character not in "0123456789abcdef" for character in digest)
             or not isinstance(size, int)
             or isinstance(size, bool)
-            or not 0 <= size <= MAX_FILE_BYTES
+            or not 0 <= size <= size_limit
         ):
             raise ValueError("protected knowledge index is invalid")
         if source_type == "git":
@@ -144,17 +154,27 @@ def _approved_file(path, entries):
             raise ValueError("symbolic links are forbidden")
     resolved = source.resolve(strict=True)
     resolved.relative_to(root)
-    if not resolved.is_file() or resolved.suffix.lower() not in TEXT_SUFFIXES:
+    suffix = resolved.suffix.lower()
+    if not resolved.is_file() or suffix not in SEARCHABLE_SUFFIXES:
         raise ValueError("file type is not approved for text reading")
     data = resolved.read_bytes()
     if len(data) != entry["size_bytes"] or hashlib.sha256(data).hexdigest() != entry["sha256"]:
         raise ValueError("published file does not match the protected knowledge index")
-    if b"\x00" in data:
-        raise ValueError("binary content is forbidden")
-    return root, resolved, entry, data.decode("utf-8")
+    if suffix in RICH_SUFFIXES:
+        text = extract_rich(suffix, data)
+    else:
+        if b"\x00" in data:
+            raise ValueError("binary content is forbidden")
+        text = data.decode("utf-8")
+    return root, resolved, entry, text
 
 
 def _citation(entry, path, start_line, end_line, lines):
+    if Path(path).suffix.lower() in RICH_SUFFIXES:
+        location = f"extracted-L{start_line}" if start_line == end_line else f"extracted-L{start_line}-L{end_line}"
+        if entry.get("source_type") == "git":
+            return f"{entry['repository']}@{entry['commit']}:{entry['source_path']}#{location}"
+        return f"knowledge@sha256:{path}#{location}"
     if entry.get("source_type") == "git":
         location = str(start_line) if start_line == end_line else f"{start_line}-{end_line}"
         return f"{entry['repository']}@{entry['commit']}:{entry['source_path']}:{location}"
@@ -203,7 +223,7 @@ def knowledge_search(query, max_results=20):
         needle = query.casefold()
         matches = []
         for relative, entry in sorted(entries.items()):
-            if Path(relative).suffix.lower() not in TEXT_SUFFIXES:
+            if Path(relative).suffix.lower() not in SEARCHABLE_SUFFIXES:
                 continue
             root, source, _, text = _approved_file(relative, entries)
             lines = text.splitlines()

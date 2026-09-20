@@ -9,6 +9,7 @@ use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const MAX_TOTAL_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_RICH_FILE_BYTES: usize = 16_000_000;
 const DEFAULT_DENY_PREFIXES: &[&str] = &[
     ".git/", ".m2/", ".pnpm-store/", "backup/", "backups/", "build/", "dist/", "logs/", "node_modules/",
     "target/", "temp/", "tmp/",
@@ -78,6 +79,9 @@ pub fn build(out_root: &Path, sources: &[KnowledgeSource]) -> Result<SnapshotOut
         };
         records.push(record);
         for file in collected {
+            if is_rich_file(&file.path) && file.bytes.len() > MAX_RICH_FILE_BYTES {
+                return Err(format!("{} 超过单个 PDF、Office 或图片文件的 16MB 上限。", file.path));
+            }
             if let Some(existing) = files.get(&file.path) {
                 let _ = existing;
                 return Err(format!("多个知识来源产生相同路径：{}", file.path));
@@ -442,6 +446,17 @@ fn is_denied(path: &str) -> bool {
     DEFAULT_DENY_SUFFIXES.iter().any(|suffix| lower.ends_with(suffix))
 }
 
+fn is_rich_file(path: &str) -> bool {
+    let extension = Path::new(path)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.to_ascii_lowercase());
+    matches!(
+        extension.as_deref(),
+        Some("pdf" | "docx" | "xlsx" | "pptx" | "png" | "jpg" | "jpeg" | "webp" | "tif" | "tiff" | "bmp" | "gif")
+    )
+}
+
 fn scan_sensitive(content: &[u8]) -> Option<&'static str> {
     if contains(content, b"-----BEGIN ") && contains(content, b"PRIVATE KEY-----") {
         return Some("私钥块");
@@ -667,6 +682,21 @@ mod tests {
         };
         let error = build(&out, &[source]).unwrap_err();
         assert!(error.contains("敏感内容"), "unexpected error: {}", error);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn rejects_rich_file_too_large_for_runtime() {
+        let root = temp_dir("large-rich-file");
+        let docs = root.join("docs");
+        fs::create_dir_all(&docs).unwrap();
+        fs::write(docs.join("large.PDF"), vec![0; MAX_RICH_FILE_BYTES + 1]).unwrap();
+        let error = build(
+            &root.join("out"),
+            &[KnowledgeSource::Folder { label: "docs".into(), path: docs, include: vec![] }],
+        )
+        .unwrap_err();
+        assert!(error.contains("16MB"), "unexpected error: {}", error);
         let _ = fs::remove_dir_all(&root);
     }
 
