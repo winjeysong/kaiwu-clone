@@ -203,6 +203,8 @@ def knowledge_search(query, max_results=20):
         needle = query.casefold()
         matches = []
         for relative, entry in sorted(entries.items()):
+            if Path(relative).suffix.lower() not in TEXT_SUFFIXES:
+                continue
             root, source, _, text = _approved_file(relative, entries)
             lines = text.splitlines()
             for line_number, line in enumerate(lines, 1):
