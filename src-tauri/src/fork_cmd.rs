@@ -167,7 +167,7 @@ fn summary_of(root: &std::path::Path, config: &ForkConfig) -> ForkSummary {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_forks(app: AppHandle) -> Result<Vec<ForkSummary>, String> {
     let root = forks_root(&app)?;
     let mut summaries: Vec<ForkSummary> = Vec::new();
@@ -232,7 +232,7 @@ pub fn create_fork(app: AppHandle, draft: ForkDraft) -> Result<ForkConfig, Strin
     Ok(config)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn update_fork(app: AppHandle, id: String, draft: ForkDraft) -> Result<ForkConfig, String> {
     let name = validate_fork_name(&draft.name)?;
     if draft.knowledge_sources.is_empty() {
@@ -293,7 +293,7 @@ pub fn get_fork(app: AppHandle, id: String) -> Result<ForkConfig, String> {
     store::read_fork_at(&root, &id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn delete_fork(app: AppHandle, id: String) -> Result<(), String> {
     let root = forks_root(&app)?;
     let _ = docker::remove(&container_name(&id));
@@ -310,7 +310,7 @@ pub fn set_fork_model_key(app: AppHandle, id: String, key: String) -> Result<(),
     store::set_model_key(&id, key.trim())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn build_fork_snapshot(app: AppHandle, id: String) -> Result<snapshot::SnapshotOutcome, String> {
     let root = forks_root(&app)?;
     let mut config = store::read_fork_at(&root, &id)?;
@@ -322,12 +322,12 @@ pub fn build_fork_snapshot(app: AppHandle, id: String) -> Result<snapshot::Snaps
     Ok(outcome)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn docker_probe() -> docker::DockerStatus {
     docker::probe()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn start_fork(app: AppHandle, id: String) -> Result<(), String> {
     let root = forks_root(&app)?;
     let mut config = store::read_fork_at(&root, &id)?;
@@ -389,21 +389,21 @@ pub fn start_fork(app: AppHandle, id: String) -> Result<(), String> {
     docker::run(&spec)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn stop_fork(app: AppHandle, id: String) -> Result<(), String> {
     let root = forks_root(&app)?;
     store::read_fork_at(&root, &id)?;
     docker::stop(&container_name(&id))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn fork_status(app: AppHandle, id: String) -> Result<docker::ContainerStatus, String> {
     let root = forks_root(&app)?;
     store::read_fork_at(&root, &id)?;
     docker::status(&container_name(&id))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn fork_connection_state(app: AppHandle, id: String) -> Result<docker::ConnectionState, String> {
     let root = forks_root(&app)?;
     store::read_fork_at(&root, &id)?;
@@ -418,7 +418,7 @@ pub fn fork_identity_public_key(app: AppHandle, id: String) -> Result<String, St
     Ok(read_identity_at(&identities, &config.identity_id)?.public_key_hex)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn fork_logs(app: AppHandle, id: String, tail: usize) -> Result<String, String> {
     let root = forks_root(&app)?;
     store::read_fork_at(&root, &id)?;

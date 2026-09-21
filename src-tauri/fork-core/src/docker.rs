@@ -396,19 +396,63 @@ fn run_docker_owned(args: &[String]) -> Result<String, String> {
 fn docker_command() -> Command {
     #[cfg(windows)]
     {
-        let mut command = Command::new("docker");
+        let mut command = Command::new(windows_docker_program(|path| Path::new(path).is_file()));
         command.creation_flags(0x08000000); // CREATE_NO_WINDOW
         command
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        Command::new(macos_docker_program(|path| Path::new(path).is_file()))
+    }
+    #[cfg(all(not(windows), not(target_os = "macos")))]
     {
         Command::new("docker")
     }
 }
 
+#[cfg(windows)]
+fn windows_docker_program(exists: impl Fn(&str) -> bool) -> &'static str {
+    [r"C:\Program Files\Docker\Docker\resources\bin\docker.exe"]
+        .into_iter()
+        .find(|path| exists(path))
+        .unwrap_or("docker")
+}
+
+#[cfg(target_os = "macos")]
+fn macos_docker_program(exists: impl Fn(&str) -> bool) -> &'static str {
+    [
+        "/Applications/Docker.app/Contents/Resources/bin/docker",
+        "/usr/local/bin/docker",
+        "/opt/homebrew/bin/docker",
+    ]
+    .into_iter()
+    .find(|path| exists(path))
+    .unwrap_or("docker")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_prefers_docker_desktop_cli_outside_shell_path() {
+        assert_eq!(
+            windows_docker_program(|path| path.starts_with(r"C:\Program Files\")),
+            r"C:\Program Files\Docker\Docker\resources\bin\docker.exe"
+        );
+        assert_eq!(windows_docker_program(|_| false), "docker");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_prefers_docker_desktop_cli_outside_shell_path() {
+        assert_eq!(
+            macos_docker_program(|path| path.starts_with("/Applications/")),
+            "/Applications/Docker.app/Contents/Resources/bin/docker"
+        );
+        assert_eq!(macos_docker_program(|_| false), "docker");
+    }
 
     #[test]
     fn docker_args_mount_secrets_without_exposing_values() {
