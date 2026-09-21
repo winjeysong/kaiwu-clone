@@ -70,4 +70,5 @@ jobs:
           releaseBody: Windows 与 macOS 安装包。
           releaseDraft: false
           prerelease: false
+          uploadWorkflowArtifacts: true
           args: ${{ matrix.args }}
