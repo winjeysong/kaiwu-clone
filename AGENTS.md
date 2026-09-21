@@ -89,7 +89,7 @@ runtime/                       # 分身运行时容器资产（与客户端解�
 ## CI 发布
 
 - `.github/workflows/build.yml`：推送 main 后构建三平台桌面安装包（macOS arm64/x64、Windows），使用 `ACR_NAMESPACE` 注入正式运行时镜像。发版前同步更新三个版本号。
-- `.github/workflows/runtime-image.yml`：`runtime/**` 变更时构建并推送 `buzz-fork-hermes` 镜像到 ACR。需要 secrets：`ACR_USERNAME`、`ACR_PASSWORD`、`ACR_NAMESPACE`。
+- `.gitlab-ci.yml`：推送 Tag 时校验对应提交属于 GitLab 默认分支历史，通过后构建并推送 `buzz-fork-hermes` 镜像到 ACR。需要受保护且掩码的变量：`ACR_USERNAME`、`ACR_PASSWORD`、`ACR_NAMESPACE`；Runner 须启用 Docker-in-Docker 的特权模式。
 
 ## 注意事项
 
